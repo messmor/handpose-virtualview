@@ -40,7 +40,7 @@ class MultiviewA2J(nn.Module):
         self.a2j = A2J_model(num_joints, dropout_rate=dropout_rate, light=light)
         self.conf_fuse_net = A2JConfNet(n_head, d_attn, d_k, d_v, d_inner, dropout_rate, num_select, random_select)
 
-    def forward(self, cropped, crop_trans, com_2d, inter_matrix, cube, level, view_trans=None):
+    def forward(self, cropped, crop_trans, com_2d, cube, level, view_trans=None):
         """
         :param cropped: Tensor(B, 1, 176, 176) or Tensor(B, N, 1, 176, 176)
         :param crop_trans: Tensor(B, 3, 3)

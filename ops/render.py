@@ -1,16 +1,16 @@
 import torch
 import numpy as np
-import depth_to_point_cloud_mask_cuda
-import point_cloud_mask_to_depth_cuda
 import sys
+
 import os
 dir = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(dir)
 sys.path.append(root)
-from torch.utils.data import DataLoader
+
+import ops.cuda as cuda
+
 from ops.point_transform import transform_3D, \
     transform_2D_to_3D, transform_3D_to_2D, transform_2D
-from feeders.nyu_feeder import NyuFeeder
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s: %(levelname)s %(name)s:%(lineno)d] %(message)s")
@@ -40,11 +40,11 @@ def depth_to_point_cloud_mask(depth):
     :return: point_cloud: Tensor(B, N, 3), mask: Tensor(B, N)
     """
     depth = depth.permute((0, 2, 3, 1)) # (B, H, W, 1)
-    return depth_to_point_cloud_mask_cuda.forward(depth.contiguous())
+    return cuda.depth_to_point_cloud_mask_cuda.forward(depth.contiguous())
 
 
 def point_cloud_mask_to_depth(point_cloud, mask, h, w):
-    depth = point_cloud_mask_to_depth_cuda.forward(point_cloud.contiguous(), mask, h, w) # (B, H, W, 1)
+    depth = cuda.point_cloud_mask_to_depth_cuda.forward(point_cloud.contiguous(), mask, h, w) # (B, H, W, 1)
     depth = depth.permute((0, 3, 1, 2)) # (B, 1, H, W)
     return depth
 
@@ -192,6 +192,7 @@ def depth_crop_expand(depth_crop, fx, fy, u0, v0, crop_trans, level, com_2d, ran
             depth_crop_expand: Tensor(B, num_select, 1, H, W)
             view_mat: Tensor(B, num_select, 4, 4)
     """
+    print("depth_crop shape", depth_crop.shape)
     B, _, H, W = depth_crop.size()
     center = com_2d
     center = transform_2D_to_3D(center, fx, fy, u0, v0)
