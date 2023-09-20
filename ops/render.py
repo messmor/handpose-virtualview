@@ -1,17 +1,31 @@
 import torch
 import numpy as np
 import sys
-
 import os
+from pathlib import Path
 dir = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(dir)
 sys.path.append(root)
-
-import ops.cuda as cuda
+cuda_dir = Path(root) / "ops/cuda"
+sys.path.append(cuda_dir.as_posix())
 
 from ops.point_transform import transform_3D, \
     transform_2D_to_3D, transform_3D_to_2D, transform_2D
 import logging
+
+from torch.utils.cpp_extension import load
+depth_to_point_cloud_mask_cuda = load(name="pt_2_cloud",
+                                      sources=["/home/inseer/engineering/handpose-virtualview/ops/cuda/depth_to_point_cloud_mask_cuda.cpp",
+                                               "/home/inseer/engineering/handpose-virtualview/ops/cuda/depth_to_point_cloud_mask_cuda_kernel.cu"
+                                               ],
+                                      verbose=True)
+
+
+point_cloud_mask_to_depth_cuda = load(name="cloud_2_pt",
+                                      sources=["/home/inseer/engineering/handpose-virtualview/ops/cuda/point_cloud_mask_to_depth_cuda.cpp",
+                                               "/home/inseer/engineering/handpose-virtualview/ops/cuda/point_cloud_mask_to_depth_cuda_kernel.cu"
+                                               ],
+                                      verbose=True)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s: %(levelname)s %(name)s:%(lineno)d] %(message)s")
 logger = logging.getLogger(__file__)
@@ -39,13 +53,22 @@ def depth_to_point_cloud_mask(depth):
     :param depth: Tensor(B, 1, H, W)
     :return: point_cloud: Tensor(B, N, 3), mask: Tensor(B, N)
     """
+    if isinstance(depth, np.ndarray):
+        depth = torch.from_numpy(depth)
     depth = depth.permute((0, 2, 3, 1)) # (B, H, W, 1)
-    return cuda.depth_to_point_cloud_mask_cuda.forward(depth.contiguous())
+    depth = depth.to("cuda")
+    pt_cloud = depth_to_point_cloud_mask_cuda.forward(depth.contiguous())
+
+    return pt_cloud
 
 
 def point_cloud_mask_to_depth(point_cloud, mask, h, w):
-    depth = cuda.point_cloud_mask_to_depth_cuda.forward(point_cloud.contiguous(), mask, h, w) # (B, H, W, 1)
+
+    mask = mask.to("cuda")
+    point_cloud = point_cloud.to("cuda")
+    depth = point_cloud_mask_to_depth_cuda.forward(point_cloud.contiguous(), mask, h, w) # (B, H, W, 1)
     depth = depth.permute((0, 3, 1, 2)) # (B, 1, H, W)
+
     return depth
 
 
@@ -56,6 +79,8 @@ def uniform_view_matrix(center, level, random_sample, random_rotate):
     :param level: int, 1, 2, 3, 4 or 5
     :return: Tensor(B, num_views, 4, 4)
     """
+    if len(center.size()) < 2:
+        center = center[None]
     B = center.size(0)
     if random_sample:
         if level == 0:
@@ -192,7 +217,7 @@ def depth_crop_expand(depth_crop, fx, fy, u0, v0, crop_trans, level, com_2d, ran
             depth_crop_expand: Tensor(B, num_select, 1, H, W)
             view_mat: Tensor(B, num_select, 4, 4)
     """
-    print("depth_crop shape", depth_crop.shape)
+
     B, _, H, W = depth_crop.size()
     center = com_2d
     center = transform_2D_to_3D(center, fx, fy, u0, v0)

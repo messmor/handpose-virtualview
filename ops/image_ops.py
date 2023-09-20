@@ -35,6 +35,8 @@ def normalize_depth_expand(depth_expand, com_2d, cube):
     com_z = com_2d[:, 2]
     com_z = com_z[:, None, None, None, None].repeat((1, N, 1, H, W))
     cube_z = cube[:, 2]
+    print("shape of cube_z", cube_z.shape)
+    print("shape of (1, N, 1, H, W)", (1, N, 1, H, W) )
     cube_z = cube_z[:, None, None, None, None].repeat((1, N, 1, H, W))
     norm_depth_expand = depth_expand + background * (com_z + (cube_z / 2.))
     norm_depth_expand = (norm_depth_expand - com_z) / (cube_z / 2.)

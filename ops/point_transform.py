@@ -31,6 +31,8 @@ def transform_3D(points, trans_matrix):
     :param trans_matrix: Tensor(..., 4, 4)
     :return: Tensor(B, N, 3)
     """
+    trans_matrix = trans_matrix.float()
+    points = points.float()
     x = points[..., 0]
     y = points[..., 1]
     z = points[..., 2]

@@ -1,3 +1,4 @@
+import numpy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -60,6 +61,12 @@ class MultiviewA2J(nn.Module):
             regression: Tensor(B*num_views, w/16*h/16*A, num_joints, 2)
             depthregression: Tensor(B*num_views, w/16*h/16*A, num_joints)
         """
+        # convert all inputs into tensors
+        cropped = torch.from_numpy(cropped).to("cuda")
+        crop_trans = torch.from_numpy(crop_trans).to("cuda")
+        com_2d = torch.from_numpy(com_2d).to("cuda")
+        cube = torch.from_numpy(cube).to("cuda")
+
         if level==-1:
             assert view_trans is not None
             B, num_views, _, H, W = cropped.shape
@@ -82,7 +89,8 @@ class MultiviewA2J(nn.Module):
                     view_trans = view_trans.repeat((B, 1, 1, 1)).to(cropped.device)
 
             B, num_views, _, H, W = crop_expand.shape
-            crop_expand = normalize_depth_expand(crop_expand, com_2d, cube)
+            # TODO uncomment this out
+            # crop_expand = normalize_depth_expand(crop_expand, com_2d, cube)
         crop_expand = crop_expand.reshape((B * num_views, 1, H, W))
 
 
