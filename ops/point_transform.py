@@ -43,7 +43,7 @@ def transform_3D(points, trans_matrix):
     return points
 
 
-def transform_2D(points, trans_matirx):
+def transform_2D(points, trans_matrix):
     """2D affine transformation
 
     :param points: Tensor(..., N, 2|3)
@@ -57,7 +57,7 @@ def transform_2D(points, trans_matirx):
         z = points[..., 2]
     ones = torch.ones_like(x)
     points_h = torch.stack([x, y, ones], axis=-2) # (B, 3, N)
-    points_h = trans_matirx @ points_h
+    points_h = trans_matrix @ points_h
     points = torch.transpose(points_h, -2, -1) # (B, N, 3)
     if d > 2:
         points[..., 2] = z

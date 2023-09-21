@@ -170,7 +170,7 @@ def crop_area_3d(depth, com_2d, fx, fy, bbx=None, offset=0., minRatioInside=0.75
     # crop patch from source
     cropped = imgDepth[max(ystart, 0):min(yend, imgDepth.shape[0]), max(xstart, 0):min(xend, imgDepth.shape[1])].copy()
     # add pixels that are out of the image in order to keep aspect ratio
-    print("cropped shape", cropped.shape)
+
     cropped = np.pad(cropped, ((abs(ystart) - max(ystart, 0), abs(yend) - min(yend, imgDepth.shape[0])),
                                   (abs(xstart) - max(xstart, 0), abs(xend) - min(xend, imgDepth.shape[1]))),
                         mode='constant', constant_values=int(CROP_BG_VALUE))
