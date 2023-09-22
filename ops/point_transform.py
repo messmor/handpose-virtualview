@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 
@@ -31,11 +32,17 @@ def transform_3D(points, trans_matrix):
     :param trans_matrix: Tensor(..., 4, 4)
     :return: Tensor(B, N, 3)
     """
+    if isinstance(trans_matrix, np.ndarray):
+        trans_matrix = torch.from_numpy(trans_matrix)
+    if isinstance(points, np.ndarray):
+        points = torch.from_numpy(points)
+
     trans_matrix = trans_matrix.float()
     points = points.float()
     x = points[..., 0]
     y = points[..., 1]
     z = points[..., 2]
+    print("points shape", points.size())
     ones = torch.ones_like(x)
     points_h = torch.stack([x, y, z, ones], -2) # (..., 4, N)
     points_h = trans_matrix @ points_h
@@ -50,6 +57,10 @@ def transform_2D(points, trans_matrix):
     :param trans_matirx: Tensor(..., 3, 3)
     :return: Tensor(..., N, 2|3)
     """
+    if isinstance(trans_matrix, np.ndarray):
+        trans_matrix = torch.from_numpy(trans_matrix)
+    if isinstance(points, np.ndarray):
+        points = torch.from_numpy(points)
     d = points.size(-1)
     x = points[..., 0]
     y = points[..., 1]

@@ -49,7 +49,7 @@ class Hand_Model_3d(object):
 
     def inference(self, depth_map):
         com_2d = calculate_com_2d(depth_map)
-        cropped, crop_trans, com_2d = crop_area_3d(depth_map, com_2d, self.fx, self.fy, size=[280, 280, 280],
+        cropped, crop_trans, com_2d = crop_area_3d(depth_map, com_2d, self.fx, self.fy, size=np.squeeze(self.cube),
                                                    dsize=[self.crop_size, self.crop_size], docom=False)
         cropped = cropped[None, None]
         crop_trans = crop_trans[None]
@@ -60,14 +60,17 @@ class Hand_Model_3d(object):
             self.model(cropped, crop_trans, com_2d, self.cube, self.level)
         self.joint_3d = joint_3d_fused.detach().cpu().numpy()
         self.joint_3d = np.squeeze(self.joint_3d)
+        print("inference pass finished!")
 
         return joints_3d, joint_3d_fused
 
     def visualize_3d_joints(self, depth_map):
-
+        print("start visualization!")
         com_2d = calculate_com_2d(depth_map)
+        print("com_2d calculated!")
         cropped, crop_trans, com_2d = crop_area_3d(depth_map, com_2d, self.fx, self.fy, size=[280, 280, 280],
                                                    dsize=[self.crop_size, self.crop_size], docom=False)
+        print("crop_area_3d completed!")
         cropped, crop_trans, com_2d = torch.from_numpy(cropped).to("cuda"), torch.from_numpy(crop_trans).to("cuda"), torch.from_numpy(com_2d).to("cuda")
         cropped = cropped[None, None]
         crop_trans = crop_trans[None]
@@ -79,37 +82,41 @@ class Hand_Model_3d(object):
                                                   u0=self.u0,
                                                   v0=self.v0,
                                                   crop_trans=crop_trans,
-                                                  level=4,
+                                                  level=1,
                                                   com_2d=com_2d,
                                                   random_sample=False
                                                   )
+        print("depth_crop_expand completed!")
         # take off cuda
         cropped = cropped.cpu().numpy()
+        print("cropped_shape", cropped.shape)
         crop_trans = crop_trans.cpu().numpy()
         com_2d = com_2d.cpu().numpy()
         crop_expand = crop_expand.cpu().numpy()
         view_mat = view_mat.cpu().numpy()
 
-        plt.imshow(cropped[0, 0, ...])
-        plt.show()
+        # plt.imshow(cropped[0, 0, ...])
+        # plt.show()
         print(crop_expand.shape)
         cube = np.squeeze(self.cube)
         com_2d = np.squeeze(com_2d)
-        for i in range(0, crop_expand.shape[1], 2):
-            img = crop_expand[0, i, 0, ...]
+        #
+        for i in range(0, crop_expand.shape[1], 1):
+            print(f"iteration {i}")
+            img = cropped[0, 0]
             img[img>1e-3] = img[img>1e-3] - com_2d[2] + cube[2]/2.
             img[img<1e-3] = cube[2]
             img = img / cube[2]
-            _joint_3d = self.joint_3d[0]
+            _joint_3d = self.joint_3d
             _joint_3d = np_pt.transform_3D(_joint_3d, view_mat[0, i])
             _joint_2d = np_pt.transform_3D_to_2D(_joint_3d, self.fx, self.fy, self.u0, self.v0)
             _crop_joint_2d = np_pt.transform_2D(_joint_2d, crop_trans[0])
             fig, ax = plt.subplots(figsize=plt.figaspect(img))
             fig.subplots_adjust(0, 0, 1, 1)
             ax.imshow(img, cmap='gray')
-            # ax.scatter(_crop_joint_2d[:, 0], _crop_joint_2d[:, 1], c='red', s=100)
+            ax.scatter(_crop_joint_2d[:, 0], _crop_joint_2d[:, 1], c='red', s=100)
             ax.axis('off')
-            plt.savefig('{}.jpg'.format(i))
+            # plt.savefig('{}.jpg'.format(i))
             plt.show()
 
 
@@ -146,6 +153,7 @@ def plot_fused_joints(joints_3d):
 
 if __name__ == "__main__":
     import cv2
+    from pathlib import Path
     from utils.parser_utils import get_a2j_parser
     parser = get_a2j_parser()
     args = parser.parse_args()
@@ -158,21 +166,18 @@ if __name__ == "__main__":
     # com_2d = np.mean(kps, axis=0)
     # print("com_2d", com_2d)
     # load depth map
-    depth_map_path = "/home/inseer/data/Hand_Testing/Orientation/Front_Flexion_And_Extension/hand_depth_maps/frame_120_person_0_right.jpg"
-    depth_map = cv2.imread(depth_map_path)
-    depth_map = cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
-    plt.imshow(depth_map)
-    plt.show()
+    # depth_map_path = "/home/inseer/data/Hand_Testing/Orientation/Front_Flexion_And_Extension/hand_depth_maps/frame_120_person_0_right.jpg"
+    depth_dir = "/home/inseer/data/Hand_Testing/Orientation/Front_Flexion_And_Extension/hand_depth_maps/"
+    for depth_map_path in Path(depth_dir).iterdir():
+        depth_map = cv2.imread(depth_map_path.as_posix())
+        depth_map = cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
+        plt.imshow(depth_map)
+        plt.show()
 
-    print("depth map shape", depth_map.shape)
 
-    joints_3d, joint_3d_fused = h_model.inference(depth_map)
-
-    print("joints_3d shape: ", joints_3d.shape)
-    print("joint_3d_fused:", joint_3d_fused.shape)
-    print("Fused 3d joints")
-    joint_3d_fused = joint_3d_fused[0]
-    h_model.visualize_3d_joints(depth_map)
+        joints_3d, joint_3d_fused = h_model.inference(depth_map)
+        joint_3d_fused = joint_3d_fused[0]
+        h_model.visualize_3d_joints(depth_map)
 
 
 
