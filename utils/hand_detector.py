@@ -24,14 +24,14 @@ logger = logging.getLogger(__file__)
 
 def normlize_depth(depth, com_2d, cube_z):
     norm_depth = depth.copy()
-    norm_depth[norm_depth==0] = com_2d[2]+(cube_z/2.)
+    norm_depth[norm_depth == 0] = com_2d[2]+(cube_z/2.)
     norm_depth -= com_2d[2]
     norm_depth /= (cube_z/2.)
     return norm_depth
 
 
 def calculate_com_2d(dpt):
-    """Calculate the center of mass
+    """Calculate the center of mass of the 2d depth map
 
     :param dpt: depth image; invalid pixels which should not be considered must be set zero
     :return: (x,y,z) center of mass
@@ -114,7 +114,7 @@ def calc_mask(depth, com_2d, fx, fy, bbx, offset, minRatioInside=0.75, size=(250
 def crop_area_3d(depth, com_2d, fx, fy, bbx=None, offset=0., minRatioInside=0.75,
                size=(250, 250, 250), dsize=(128, 128), docom=True):
     """
-    Crop area of hand in 3D volumina, scales inverse to the distance of hand to camera
+    Crop area of hand in 3D volume, scales inverse to the distance of hand to camera
     :param com_2d: center of mass, in image coordinates (x,y,z), z in mm
     :param size: (x,y,z) extent of the source crop volume in mm
     :param dsize: (x,y) extent of the destination size
@@ -126,9 +126,9 @@ def crop_area_3d(depth, com_2d, fx, fy, bbx=None, offset=0., minRatioInside=0.75
     if len(size) != 3 or len(dsize) != 2:
         # print('Size must be 3D and dsize 2D bounding box')
         raise ValueError("Size must be 3D and dsize 2D bounding box")
-
+    # if a bounding box is provided, crop interior of bbox from depth map
     if bbx is not None:
-        if len(bbx)==6:
+        if len(bbx) == 6:
             left, right, up, down, front, back = bbx
         else:
             left, right, up, down = bbx
@@ -142,7 +142,7 @@ def crop_area_3d(depth, com_2d, fx, fy, bbx=None, offset=0., minRatioInside=0.75
         down = min(down, depth.shape[0])
         imgDepth = np.zeros_like(depth)
         imgDepth[up:down, left:right] = depth[up:down, left:right]
-        if len(bbx)==6:
+        if len(bbx) == 6:
             imgDepth[imgDepth < front-offset] = 0.
             imgDepth[imgDepth > back+offset] = 0.
     else:

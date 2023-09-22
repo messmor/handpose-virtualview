@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 import random
 import cv2
@@ -17,7 +18,7 @@ root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root)
 from utils.hand_detector import calculate_com_2d, crop_area_3d
 from utils.image_utils import normlize_depth
-
+mpl.use('TkAgg')
 logging.basicConfig(level=logging.INFO, format="%(asctime)s: %(levelname)s %(name)s:%(lineno)d] %(message)s")
 logger = logging.getLogger(__file__)
 
@@ -84,7 +85,17 @@ class NyuFeeder(Dataset):
         return joint_2d, joint_3d, depth_path
 
     def show(self, cropped, joint_3d, crop_trans):
-        joint_2d = self.inter_matrix @ np.transpose(joint_3d, (1, 0))
+        cropped = cropped.numpy()
+        joint_3d = joint_3d.numpy()
+        crop_trans = crop_trans.numpy()
+        cropped = cropped[0, 0]
+        joint_3d = joint_3d[0]
+        crop_trans = crop_trans[0]
+        print("cropped shape", cropped.shape)
+        print("joint_3d shape", joint_3d.shape)
+        print("crop_trans", crop_trans.shape)
+        print("shape inter matrix", self.inter_matrix.shape)
+        joint_2d = self.inter_matrix @ np.transpose(joint_3d,(1, 0))
         joint_2d = joint_2d / joint_2d[2, :]
         joint_2d = np.transpose(joint_2d, (1, 0))
         crop_joint_2d = np.ones_like(joint_2d)
@@ -101,6 +112,9 @@ class NyuFeeder(Dataset):
         item = self.index[item]
         joint_2d, joint_3d, depth_path = self.joint_2d[item], self.joint_3d[item], self.depth_path[item]
         depth = load_depth_map(depth_path)
+        print("depth map size", depth.shape)
+        plt.imshow(depth)
+        plt.show()
         if depth is None:
             return item, None, None, joint_3d, None, None, self.inter_matrix
         # com_2d = joint_2d[13]
@@ -136,6 +150,8 @@ class NyuFeeder(Dataset):
                 cube = self.cube
             cropped, crop_trans, com_2d = crop_area_3d(depth, com_2d, self.fx, self.fy, size=cube,
                                                        dsize=[self.crop_size, self.crop_size], docom=False)
+        plt.imshow(cropped)
+        plt.show()
         # if self.random_rotate:
         #     # plt.imshow(cropped)
         #     # plt.show()
@@ -243,22 +259,23 @@ def collate_fn(batch):
 
 
 if __name__ == '__main__':
-    train_dataset = NyuFeeder('train', max_jitter=10., depth_sigma=0., offset=30, random_flip=False)
-    item, depth, cropped, joint_3d, crop_trans, com_2d, inter_matrix, cube = train_dataset[0]
-    dataloader = DataLoader(train_dataset, shuffle=False, batch_size=1, collate_fn=collate_fn)
-    for batch_idx, batch_data in enumerate(dataloader):
-        item, depth, cropped, joint_3d, crop_trans, com_2d, inter_matrix, cube = batch_data
-        print(item)
-        print(cube)
-        break
-
-    # test_dataset = NyuFeeder('test', max_jitter=0., depth_sigma=0., offset=30, random_flip=False)
-    # dataloader = DataLoader(test_dataset, shuffle=True, batch_size=4)
+    # train_dataset = NyuFeeder('train', max_jitter=10., depth_sigma=0., offset=30, random_flip=False)
+    # item, depth, cropped, joint_3d, crop_trans, com_2d, inter_matrix, cube = train_dataset[0]
+    # dataloader = DataLoader(train_dataset, shuffle=False, batch_size=1, collate_fn=collate_fn)
     # for batch_idx, batch_data in enumerate(dataloader):
     #     item, depth, cropped, joint_3d, crop_trans, com_2d, inter_matrix, cube = batch_data
     #     print(item)
     #     print(cube)
     #     break
+
+    test_dataset = NyuFeeder('test', max_jitter=0., depth_sigma=0., offset=30, random_flip=False)
+    dataloader = DataLoader(test_dataset, shuffle=True, batch_size=1)
+    for batch_idx, batch_data in enumerate(dataloader):
+        item, depth, cropped, joint_3d, crop_trans, com_2d, inter_matrix, cube = batch_data
+        print(item)
+        print(cube)
+        # test_dataset.show(cropped, joint_3d, crop_trans)
+        break
 
     # random.seed(0)
     # train_dataset = NyuFeeder('test', jitter_sigma=0., noise_sigma=0., scale_sigma=0., random_flip=True)

@@ -1,6 +1,6 @@
 {
   "name": "nyu",
-  "path": "/home/dataset/nyu/dataset",
+  "path": "/home/inseer/data/Hand_Testing/nyu_hand_dataset_v2/dataset",
   "camera": {"u0": 320.0, "v0": 240.0, "fx": 588.03, "fy": 587.07},
   "height": 480,
   "width": 640,
