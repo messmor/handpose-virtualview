@@ -16,6 +16,8 @@ along with PreView.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 import cv2
 import math
+
+import torch
 from scipy import ndimage
 import matplotlib.pyplot as plt
 import logging
@@ -36,6 +38,8 @@ def calculate_com_2d(dpt):
     :param dpt: depth image; invalid pixels which should not be considered must be set zero
     :return: (x,y,z) center of mass
     """
+    if isinstance(dpt, torch.Tensor):
+        dpt = dpt.numpy()
     dc = dpt.copy()
     cc = ndimage.measurements.center_of_mass(dc > 0)
     num = np.count_nonzero(dc)
@@ -126,6 +130,10 @@ def crop_area_3d(depth, com_2d, fx, fy, bbx=None, offset=0., minRatioInside=0.75
     if len(size) != 3 or len(dsize) != 2:
         # print('Size must be 3D and dsize 2D bounding box')
         raise ValueError("Size must be 3D and dsize 2D bounding box")
+    if isinstance(depth, torch.Tensor):
+        depth = depth.numpy()
+    if isinstance(com_2d, torch.Tensor):
+        com_2d = com_2d.numpy()
     # if a bounding box is provided, crop interior of bbox from depth map
     if bbx is not None:
         if len(bbx) == 6:

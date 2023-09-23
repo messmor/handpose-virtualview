@@ -1,6 +1,5 @@
 import os
 import sys
-
 import numpy as np
 
 sys.path.append("/home/inseer/engineering/handpose-virtualview")
@@ -9,12 +8,14 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from torch.utils.data import Dataset, DataLoader
 
 from models.multiview_a2j import MultiviewA2J
 from utils.parser_utils import get_a2j_parser
 from utils.hand_detector import crop_area_3d, calculate_com_2d
 from ops import point_transform as np_pt
 from ops.render import depth_crop_expand
+from feeders.nyu_feeder import NyuFeeder
 mpl.use('TkAgg')
 class Hand_Model_3d(object):
 
@@ -47,8 +48,9 @@ class Hand_Model_3d(object):
 
         return model
 
-    def inference(self, depth_map):
-        com_2d = calculate_com_2d(depth_map)
+    def inference(self, depth_map, com_2d):
+        depth_map = torch.squeeze(depth_map)
+        com_2d = torch.squeeze(com_2d)
         cropped, crop_trans, com_2d = crop_area_3d(depth_map, com_2d, self.fx, self.fy, size=np.squeeze(self.cube),
                                                    dsize=[self.crop_size, self.crop_size], docom=False)
         cropped = cropped[None, None]
@@ -60,9 +62,9 @@ class Hand_Model_3d(object):
             self.model(cropped, crop_trans, com_2d, self.cube, self.level)
         self.joint_3d = joint_3d_fused.detach().cpu().numpy()
         self.joint_3d = np.squeeze(self.joint_3d)
-        print("inference pass finished!")
 
-        return joints_3d, joint_3d_fused
+
+        return cropped, joint_3d_conf, crop_trans
 
     def visualize_3d_joints(self, depth_map):
         print("start visualization!")
@@ -124,7 +126,6 @@ def plot_fused_joints(joints_3d):
     joints_3d = joints_3d.to('cpu').detach().numpy()
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    # connections = [[0, 11], [12, 1], [1, 2], [11, 3], [3, 4], [11, 5], [5, 6], [11, 7], [7, 8], [11, 9], [9, 10], [13, 11]]
     config = json.load(open("config/dataset/nyu.json", 'r'))
     connections = config["connections"]
     colors = config["connection_colors"]
@@ -148,36 +149,33 @@ def plot_fused_joints(joints_3d):
     plt.show()
 
 
+def test_inference_nyu():
+    """Tests the hand model inference on the nyu dataset test images."""
+    test_dataset = NyuFeeder('test', max_jitter=0., depth_sigma=0., offset=30, random_flip=False)
+    dataloader = DataLoader(test_dataset, shuffle=True, batch_size=1)
+    parser = get_a2j_parser()
+    args = parser.parse_args()
+    h_model = Hand_Model_3d(args)
+    for batch_idx, batch_data in enumerate(dataloader):
+        item, depth, cropped_gt, joint_3d_gt, crop_trans_gt, com_2d, inter_matrix, cube = batch_data
+
+        cropped, joint_3d, crop_trans = h_model.inference(depth, com_2d)
+
+        joint_3d = torch.squeeze(joint_3d)
+        test_dataset.show(cropped, joint_3d, crop_trans, cropped_gt, joint_3d_gt, crop_trans_gt)
+
+
+
+
 
 
 
 if __name__ == "__main__":
-    import cv2
-    from pathlib import Path
-    from utils.parser_utils import get_a2j_parser
-    parser = get_a2j_parser()
-    args = parser.parse_args()
-    h_model = Hand_Model_3d(args)
-    # load 2d hand kps
-    # kps_path = "/home/inseer/data/Hand_Testing/Orientation/Front_Flexion_And_Extension/hand_kps_cropped.npy"
-    # kps = np.load(kps_path, allow_pickle=True)
-    # kps = [item[1] for item in kps if item[0] == 105]
-    # kps = np.squeeze(kps[0])
-    # com_2d = np.mean(kps, axis=0)
-    # print("com_2d", com_2d)
-    # load depth map
-    # depth_map_path = "/home/inseer/data/Hand_Testing/Orientation/Front_Flexion_And_Extension/hand_depth_maps/frame_120_person_0_right.jpg"
-    depth_dir = "/home/inseer/data/Hand_Testing/Orientation/Front_Flexion_And_Extension/hand_depth_maps/"
-    for depth_map_path in Path(depth_dir).iterdir():
-        depth_map = cv2.imread(depth_map_path.as_posix())
-        depth_map = cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
-        plt.imshow(depth_map)
-        plt.show()
+    test_inference_nyu()
 
 
-        joints_3d, joint_3d_fused = h_model.inference(depth_map)
-        joint_3d_fused = joint_3d_fused[0]
-        h_model.visualize_3d_joints(depth_map)
+
+
 
 
 

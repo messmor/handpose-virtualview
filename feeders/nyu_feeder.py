@@ -84,18 +84,18 @@ class NyuFeeder(Dataset):
         depth_path.sort()
         return joint_2d, joint_3d, depth_path
 
-    def show(self, cropped, joint_3d, crop_trans):
-        cropped = cropped.numpy()
-        joint_3d = joint_3d.numpy()
-        crop_trans = crop_trans.numpy()
-        cropped = cropped[0, 0]
-        joint_3d = joint_3d[0]
-        crop_trans = crop_trans[0]
-        print("cropped shape", cropped.shape)
-        print("joint_3d shape", joint_3d.shape)
-        print("crop_trans", crop_trans.shape)
-        print("shape inter matrix", self.inter_matrix.shape)
-        joint_2d = self.inter_matrix @ np.transpose(joint_3d,(1, 0))
+    def prepare_joints_for_plot(self, cropped, joint_3d, crop_trans):
+        if isinstance(cropped, torch.Tensor):
+            cropped = cropped.detach().cpu().numpy()
+        if isinstance(joint_3d, torch.Tensor):
+            joint_3d = joint_3d.detach().cpu().numpy()
+        if isinstance(crop_trans, torch.Tensor):
+            crop_trans = crop_trans.detach().cpu().numpy()
+
+        cropped = np.squeeze(cropped)
+        joint_3d = np.squeeze(joint_3d)
+        crop_trans = np.squeeze(crop_trans)
+        joint_2d = self.inter_matrix @ np.transpose(joint_3d, (1, 0))
         joint_2d = joint_2d / joint_2d[2, :]
         joint_2d = np.transpose(joint_2d, (1, 0))
         crop_joint_2d = np.ones_like(joint_2d)
@@ -103,18 +103,59 @@ class NyuFeeder(Dataset):
         crop_joint_2d = np.transpose(crop_joint_2d, (1, 0))
         crop_joint_2d = np.array(crop_trans @ crop_joint_2d)
         crop_joint_2d = np.transpose(crop_joint_2d, (1, 0))
+
+        return cropped, crop_joint_2d, joint_3d
+
+    def show(self, cropped, joint_3d, crop_trans, cropped_gt, joint_3d_gt, crop_trans_gt):
+        cropped, joint_2d, joint_3d = self.prepare_joints_for_plot(cropped, joint_3d, crop_trans)
+        cropped_gt, joint_2d_gt, joint_3d_gt = self.prepare_joints_for_plot(cropped_gt, joint_3d_gt, crop_trans_gt)
+
         plt.clf()
+        # plot the 2d keypoints and connect with 2d lines
+        config = json.load(open("config/dataset/nyu.json", 'r'))
+        connections = config["connections"]
+        colors = config["connection_colors"]
         plt.imshow(cropped)
-        plt.scatter(crop_joint_2d[:, 0], crop_joint_2d[:, 1], c='red')
+        plt.scatter(joint_2d[:, 0], joint_2d[:, 1], c='red')
+        plt.scatter(joint_2d_gt[:, 0], joint_2d_gt[:, 1], c='green')
+        for c_i, con in enumerate(connections):
+            plt.plot([joint_2d_gt[con[0], 0], joint_2d_gt[con[1], 0]], [joint_2d_gt[con[0], 1], joint_2d_gt[con[1], 1]], c='b')
+            plt.plot([joint_2d[con[0], 0], joint_2d[con[1], 0]], [joint_2d[con[0], 1], joint_2d[con[1], 1]],
+                     c='m')
+        plt.show()
+        # plot the 3d keypoints and connect with lines
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        config = json.load(open("config/dataset/nyu.json", 'r'))
+        connections = config["connections"]
+        colors = config["connection_colors"]
+        # Extract x, y, and z coordinates from joint_locations
+        print("joint_3d shape", joint_3d.shape)
+        print("joint_3d shape", joint_3d_gt.shape)
+        x_coords, y_coords, z_coords = zip(*joint_3d)
+        x_coords_gt, y_coords_gt, z_coords_gt = zip(*joint_3d_gt)
+        # Create scatter plot
+        ax.scatter(x_coords, y_coords, z_coords, c='r', marker='o')
+        ax.scatter(x_coords_gt, y_coords_gt, z_coords_gt, c='g', marker='o')
+        for c_i, con in enumerate(connections):
+            ax.plot([x_coords_gt[con[0]], x_coords_gt[con[1]]], [y_coords_gt[con[0]], y_coords_gt[con[1]]],
+                    [z_coords_gt[con[0]], z_coords_gt[con[1]]], c='b')
+            ax.plot([x_coords[con[0]], x_coords[con[1]]], [y_coords[con[0]], y_coords[con[1]]],
+                    [z_coords[con[0]], z_coords[con[1]]], c='m')
+        # Set axis labels
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        # Set plot title
+        ax.set_title('3D Joint Locations')
+        # Show the plot
         plt.show()
 
     def __getitem__(self, item):
         item = self.index[item]
         joint_2d, joint_3d, depth_path = self.joint_2d[item], self.joint_3d[item], self.depth_path[item]
         depth = load_depth_map(depth_path)
-        print("depth map size", depth.shape)
-        plt.imshow(depth)
-        plt.show()
+
         if depth is None:
             return item, None, None, joint_3d, None, None, self.inter_matrix
         # com_2d = joint_2d[13]
@@ -150,19 +191,7 @@ class NyuFeeder(Dataset):
                 cube = self.cube
             cropped, crop_trans, com_2d = crop_area_3d(depth, com_2d, self.fx, self.fy, size=cube,
                                                        dsize=[self.crop_size, self.crop_size], docom=False)
-        plt.imshow(cropped)
-        plt.show()
-        # if self.random_rotate:
-        #     # plt.imshow(cropped)
-        #     # plt.show()
-        #     angle = np.random.rand()*360.
-        #     M = cv2.getRotationMatrix2D((self.crop_size/2., self.crop_size/2.), angle, 1.)
-        #     cropped = cv2.warpAffine(cropped, M, (self.crop_size, self.crop_size), flags=cv2.INTER_NEAREST)
-        #     rotate_trans = np.eye(3, dtype=np.float32)
-        #     rotate_trans[:2, :] = M
-        #     crop_trans = rotate_trans @ crop_trans
-        #     # plt.imshow(cropped)
-        #     # plt.show()
+
 
         if self.random_flip:
             to_center = np.array([[1., 0., self.crop_size/2.],
@@ -194,10 +223,6 @@ class NyuFeeder(Dataset):
             noise = np.random.normal(0, self.depth_sigma, size=(self.crop_size, self.crop_size)).astype(np.float32)
             cropped[cropped>1e-3] += noise[cropped>1e-3]
 
-        # self.show(cropped, joint_3d, crop_trans)
-        # plt.imshow(depth)
-        # plt.show()
-        # print(com_2d)
         return item, depth[None, ...], cropped[None, ...], joint_3d, np.array(crop_trans), com_2d, self.inter_matrix, \
                cube
 

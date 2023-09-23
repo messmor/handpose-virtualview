@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 import sys
 dir = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(dir)
@@ -90,7 +91,7 @@ class MultiviewA2J(nn.Module):
 
             B, num_views, _, H, W = crop_expand.shape
             # TODO uncomment this out
-            # crop_expand = normalize_depth_expand(crop_expand, com_2d, cube)
+            crop_expand = normalize_depth_expand(crop_expand, com_2d, cube)
         crop_expand = crop_expand.reshape((B * num_views, 1, H, W))
 
 
@@ -100,6 +101,10 @@ class MultiviewA2J(nn.Module):
         # anchor_joints_2d: (B*num_views, num_joints, 2)
         # regression_joints_2d: (B*num_views, num_joints, 2)
         # depth_value: (B*num_views, num_joints)
+        depth_input = np.squeeze(crop_expand.detach().cpu().numpy())
+        # for i in range(len(depth_input)):
+        #     plt.imshow(depth_input[i])
+        #     plt.show()
         classification, regression, depthregression, anchor_joints_2d_crop, regression_joints_2d_crop, \
         depth_value_norm = self.a2j(crop_expand)
 
