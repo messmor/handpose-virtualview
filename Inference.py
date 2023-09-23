@@ -17,6 +17,8 @@ from ops import point_transform as np_pt
 from ops.render import depth_crop_expand
 from feeders.nyu_feeder import NyuFeeder
 mpl.use('TkAgg')
+
+
 class Hand_Model_3d(object):
 
     def __init__(self, args):
@@ -34,7 +36,6 @@ class Hand_Model_3d(object):
         self.com_2d = None
         self.level = 3
         self.joint_3d = None
-
 
     def load_model(self):
         model = MultiviewA2J(self.dataset_config['camera'], self.num_joints, self.args.n_head, self.args.d_attn,
